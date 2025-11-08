@@ -118,13 +118,14 @@ if debug then
   local debug_map_coord_x = 0
   local debug_map_coord_y = 0
 end
+local errorOffline = false
 
 -- set the icon
 local icon = love.image.newImageData("assets/images/app_icon.png")
 -- local width, height = icon:getDimensions()
 local success = love.window.setIcon( icon )
 
-print("icon applied: " .. tostring(success))
+-- print("icon applied: " .. tostring(success))
 -- automatic lock for kiosk mode
 local autolock = {
   enabled = false,
@@ -282,7 +283,6 @@ if love.system.getOS() == "Linux" and experimentalheader == true then
 	end
 end
 
-
 -- estados
 -- Crear la máquina de estados primero
 local ui_state_machine = StateMachine({}, "menu")
@@ -318,6 +318,8 @@ ui_state_machine:add_state("menu", {
 	    else
 	      -- usando archivo local
 	      jsonFile = love.filesystem.read("assets/json/stands.json")
+        -- mostrar al usuario un mensaje de error para que reinicie la app conectado a internet
+        errorOffline = true
 	    end
 
 	    if jsonFile then
@@ -333,7 +335,10 @@ ui_state_machine:add_state("menu", {
     love.graphics.push()
     -- PNG del título
     love.graphics.draw(expoguia_title.png, expoguia_title.x, expoguia_title.y, 0, expoguia_title.scale, expoguia_title.scale, 0.5*expoguia_title.png:getWidth(), 0.5*expoguia_title.png:getHeight())
-    if jsonFile == 0 then
+    if errorOffline then
+      font = font_reddit_regular_16
+      text = "Conéctese a internet y reinicie la app."
+    elseif jsonFile == 0 then
       font = font_reddit_regular_16
       text = "Por favor espere. Descargando stands..."
     else
@@ -853,7 +858,9 @@ local function handlereleased(id, x, y, button, istouch)
        expo.inrange(y, 0*safe.h, 0.1*safe.h) then
       print("about dialog")
     else
-      ui_state_machine:set_state("map")
+      if not errorOffline and jsonFile ~= 0 then
+        ui_state_machine:set_state("map")
+      end
     end
   end
 

@@ -327,7 +327,7 @@ ui_state_machine:add_state("menu", {
     elseif jsondltimer < 3 then
       jsondltimer = jsondltimer + 1
     end
-    
+
   end,
   draw = function(self)
     love.graphics.push()
@@ -347,7 +347,7 @@ ui_state_machine:add_state("menu", {
     love.graphics.setFont(font)
     love.graphics.print(copyright, safe.w/2, safe.h-5, 0, 1,1, font:getWidth(copyright)/2, font:getHeight())
 
-    
+
     love.graphics.pop()
   end
 })
@@ -384,7 +384,34 @@ ui_state_machine:add_state("map", {
       end
     end
 
-    headerbar.w = safe.w - headerbar.x
+    -- Calcular los límites del mapa
+    local map = expoguia_map
+    local map_w = map.png:getWidth() * map.scale
+    local map_h = map.png:getHeight() * map.scale
+
+    -- Limitar la posición del mapa
+    -- UL no puede superar safe.w/2 y safe.h/2
+    -- DR no puede ser menor a safe.w/2 y safe.h/2
+    local ul_x = map.x - map_w/2  -- posición x de UL
+    local ul_y = map.y - map_h/2  -- posición y de UL
+    local dr_x = map.x + map_w/2  -- posición x de DR
+    local dr_y = map.y + map_h/2  -- posición y de DR
+
+    -- Aplicar restricciones
+    if ul_x > safe.w/2 then
+      map.x = safe.w/2 + map_w/2
+    end
+    if ul_y > safe.h/2 then
+      map.y = safe.h/2 + map_h/2
+    end
+    if dr_x < safe.w/2 then
+      map.x = safe.w/2 - map_w/2
+    end
+    if dr_y < safe.h/2 then
+      map.y = safe.h/2 - map_h/2
+    end
+
+    -- headerbar.w = safe.w - headerbar.x
   end,
   draw = function(self)
     -- Dibujar el mapa

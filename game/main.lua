@@ -109,8 +109,17 @@ local dialog = {
   y = safe.h,
   ly = safe.h,
   title = "",
-  borderheight = 48
+  borderheight = 48,
+  dragging = false,
+  min_y = safe.h*0.1,
+  max_y = safe.h*0.7
 }
+Filtros = {
+  exclude = false,
+  cursos = {},
+  especialidades = {}
+}
+
 local drag_start_x = 0
 local drag_start_y = 0
 local did_drag = false
@@ -755,13 +764,31 @@ local function handlepressed(id, x, y, button, istouch)
 
   if dialog_state_machine:in_state("filter") then
 		if expo.inrange(x, 0, safe.w) and
-		   expo.inrange(y, 0, 0.5*safe.h) then
+		   expo.inrange(y, 0, dialog.y) then
 		  -- begin closing
 		  dialog_closing = true
 			-- dialog_state_machine:set_state("idle")
 		else
 			dialog_closing = false
-		end
+    end
+    -- chequear si se toco el boton de include/exclude
+    local radius = 24
+    -- love.graphics.rectangle("fill", x+30, y+radius*4+4, safe.w-60, radius*1.5, radius*0.75)
+    if expo.inrange(x, 30, safe.w-60) and
+       expo.inrange(y, dialog.y+radius*4+4, radius*1.5) then
+      if Filtros.exclude then
+        Filtros.exclude = false
+      else
+        Filtros.exclude = true
+      end
+
+    -- chequear si se esta tocando la headerbar. si es asi, permitir el arrastre para expandir el dialogo
+    elseif expo.inrange(y, dialog.y, dialog.y + dialog.borderheight) then
+      dialog.dragging = true
+    else
+      dialog.dragging = false
+    end
+
 		return
   end
 
@@ -797,7 +824,7 @@ local function handlepressed(id, x, y, button, istouch)
     drag_start_y = y
     did_drag = false
 
-    -- chequea si tocaste el botón de recentrado
+    -- chequea si tocaste el botón de volver al menu
     if expo.inrange(x, 0*safe.w, 0.1*safe.w) and
        expo.inrange(y, 0*safe.h, 0.1*safe.h) then
       print("back to menu")
@@ -838,6 +865,18 @@ local function handlemoved(id, x, y, dx, dy, istouch)
       did_drag = false
     end
   end
+
+  if dialog_state_machine:in_state("filter") then
+    if dialog.dragging then
+      dialog.y = dialog.y + dy
+      -- limitar la posición del diálogo para que no se salga de la pantalla
+      if dialog.y < dialog.min_y then
+        dialog.y = dialog.min_y
+      elseif dialog.y > dialog.max_y then
+        dialog.y = dialog.max_y
+      end
+    end
+  end
 end
 
 local function handlereleased(id, x, y, button, istouch)
@@ -846,8 +885,10 @@ local function handlereleased(id, x, y, button, istouch)
   end
 
   if dialog_state_machine:in_state("filter") then
-		if expo.inrange(x, 0, safe.w) and
-		   expo.inrange(y, 0, 0.5*safe.h) and
+    if dialog.dragging then
+      dialog.dragging = false
+    elseif expo.inrange(x, 0, safe.w) and
+		   expo.inrange(y, 0, dialog.y) and
 		   dialog_closing then
       dialog_state_machine:set_state("idle")
 		end

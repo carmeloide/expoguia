@@ -93,10 +93,11 @@ local recenter_2_png = love.graphics.newImage("assets/images/recenter-2.png")
 -- variables
 local copyright = "Copyright © 2025 Lucia Gianluca"
 local debug = true
-local offlinemode = false
+local offlinemode = true
 local experimentalheader = false
 local last_pinch_dist = nil
 local jsondltimer = 0
+local touchmultiplier = 0.035
 local safe = {x = 0, y = 0, w = 0, h = 0}
 safe.x, safe.y, safe.w, safe.h = love.window.getSafeArea()
 local floatingui = {
@@ -530,6 +531,8 @@ dialog_state_machine:add_state("about", {
 dialog_state_machine:add_state("filter", {
   enter = function(self, prev)
     dialog.y = safe.h*0.5
+    dialog.min_y = safe.h*0.2
+    dialog.max_y = safe.h*0.8
   end,
   exit = function(self)
   end,
@@ -850,10 +853,12 @@ local function handlemoved(id, x, y, dx, dy, istouch)
   if debug then
     -- print("moved: " .. id .. " x,y: " .. x .. "," .. y .. " dx,dy: " .. dx .. "," .. dy)
   end
-  local multiplier = 0
+  local multiplier = 1
+  if istouch then
+    multiplier = touchmultiplier
+  end
   if ui_state_machine:in_state("map") and expoguia_map.allowdrag then
     -- por alguna razón en touch el movimiento por defecto es grande y con esto lo intento contrarrestar
-    if istouch then multiplier = 0.18 else multiplier = 1 end
     expoguia_map.x = expoguia_map.x + dx*multiplier
     expoguia_map.y = expoguia_map.y + dy*multiplier
   end
@@ -870,7 +875,7 @@ local function handlemoved(id, x, y, dx, dy, istouch)
 
   if dialog_state_machine:in_state("filter") then
     if dialog.dragging then
-      dialog.y = dialog.y + dy
+      dialog.y = dialog.y + dy*multiplier
       -- limitar la posición del diálogo para que no se salga de la pantalla
       if dialog.y < dialog.min_y then
         dialog.y = dialog.min_y

@@ -1,4 +1,0 @@
-
-- hacer la interfaz de los filtros
-- hacer que la interfaz se construya automáticamente teniendo en cuenta los stands que hay
-- completar el sistema de dialogos

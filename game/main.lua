@@ -93,6 +93,7 @@ local recenter_2_png = love.graphics.newImage("assets/images/recenter-2.png")
 -- variables
 local copyright = "Copyright © 2025 Lucia Gianluca"
 local debug = true
+local offlinemode = false
 local experimentalheader = false
 local last_pinch_dist = nil
 local jsondltimer = 0
@@ -179,8 +180,6 @@ local function try_download_json()
     else
       print("Error al guardar el archivo descargado")
     end
-  else
-    print("No se pudo descargar stands.json, usando archivo local.")
   end
   return false
 end
@@ -318,24 +317,27 @@ ui_state_machine:add_state("menu", {
 
     headerbar.w = safe.w
     if jsonFile == 0 and jsondltimer == 3 then
-      if debug then
-        print("starting to download the json")
+      if not offlinemode and not errorOffline then
+        if debug then
+          print("starting to download the json")
+        end
+        local ok = try_download_json()
+        if ok then
+          jsonFile = love.filesystem.read(download_path)
+        else
+          -- mostrar al usuario un mensaje de error para que reinicie la app conectado a internet
+          errorOffline = true
+        end
+      elseif offlinemode then
+        -- usar archivo local
+        jsonFile = love.filesystem.read("assets/json/offline.json")
       end
-	    local ok = try_download_json()
-	    if ok then
-	      jsonFile = love.filesystem.read(download_path)
-	    else
-	      -- usando archivo local
-	      jsonFile = love.filesystem.read("assets/json/stands.json")
-        -- mostrar al usuario un mensaje de error para que reinicie la app conectado a internet
-        errorOffline = true
-	    end
 
-	    if jsonFile then
+	    if jsonFile and not errorOffline then
 	      stands = json.decode(jsonFile)
 	      stands = expo.automate_stand_id(stands)
 	    end
-    elseif jsondltimer < 3 then
+    elseif jsondltimer < 3 and not errorOffline then
       jsondltimer = jsondltimer + 1
     end
 

@@ -153,6 +153,13 @@ local jsonFile = 0
 local download_url = "https://pastebin.com/raw/jvSE46GV"
 local download_path = "download.json"
 
+-- json de las categorias / filtros
+local filters_json = love.filesystem.read("assets/json/filters.json")
+local filters_data = nil
+local filters_ui = {
+  categories = {}
+}
+
 local function try_download_json()
   if not https then
     print("https library not loaded")
@@ -315,6 +322,8 @@ ui_state_machine:add_state("menu", {
     expoguia_title.x, expoguia_title.y = 0.5*safe.w, 0.5*safe.h
 
     headerbar.w = safe.w
+
+    -- momento del json (importar y decodificar)
     if jsonFile == 0 and jsondltimer == 3 then
       if not offlinemode and not errorOffline then
         if debug then
@@ -336,6 +345,29 @@ ui_state_machine:add_state("menu", {
 	      stands = json.decode(jsonFile)
 	      stands = expo.automate_stand_id(stands)
 	    end
+
+      -- json de las categorias
+      filters_data = json.decode(filters_json)
+
+      -- for sugerido por chatgpt.
+      for _, cat in ipairs(filterData) do
+        UI.categories[cat.id] = {
+            name = cat.category,
+            icons = cat.icons,
+            settings = cat.settings or {},
+            categoryStands = cat.category_stands or {},
+            stands = {},
+            selected = false,      -- estado de categoría
+            expanded = true        -- si la desplegás o no
+        }
+
+        for _, stand in ipairs(cat.stands or {}) do
+            UI.categories[cat.id].stands[stand] = false
+        end
+      end
+
+      -- fin del for
+
     elseif jsondltimer < 3 and not errorOffline then
       jsondltimer = jsondltimer + 1
     end

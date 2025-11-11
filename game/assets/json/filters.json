@@ -1,0 +1,119 @@
+[
+  {
+    "id": "misc",
+    "category": "Miscelanea",
+    "icons": [
+      "stand_escape_png",
+      "stand_bath_hombres",
+      "stand_bath_mujeres",
+      "stand_expoguia_png"
+    ],
+    "settings": [
+      "no_individual_stands"
+    ],
+    "category_stands": [
+      "ESC",
+      "BH",
+      "BM",
+      "expoguia"
+    ]
+  },
+  {
+    "id": "cb",
+    "category": "Ciclo Básico",
+    "icons": [
+      "stand_ciclo_basico_png"
+    ],
+    "settings": [
+    ],
+    "stands": [
+      "101",
+      "102",
+      "103",
+      "104",
+      "105",
+      "106",
+      "107",
+      "201",
+      "202",
+      "203",
+      "204",
+      "205",
+      "206",
+      "207",
+      "301",
+      "302",
+      "303",
+      "304",
+      "305",
+      "306",
+      "307"
+    ]
+  },
+  {
+    "id": "elec",
+    "category": "Electromecánica",
+    "icons": [
+      "stand_electro_png"
+    ],
+    "settings": [],
+    "category_stands": [
+      "E"
+    ],
+    "stands": [
+      "E",
+      "401E",
+      "402E",
+      "403E",
+      "501E",
+      "502E",
+      "503E",
+      "601E",
+      "602E",
+      "603E",
+      "701E",
+      "702E"
+    ]
+  },
+  {
+    "id": "cons",
+    "category": "Construcciones",
+    "icons": [
+      "stand_construcciones_png"
+    ],
+    "settings": [],
+    "category_stands": [
+      "C"
+    ],
+    "stands": [
+      "C",
+      "401C",
+      "402C",
+      "403C",
+      "501C",
+      "502C",
+      "503C",
+      "601C",
+      "602C",
+      "701C"
+    ]
+  },
+  {
+    "id": "ipp",
+    "category": "Informática",
+    "icons": [
+      "stand_ipp_png"
+    ],
+    "settings": [],
+    "category_stands": [
+      "IPP"
+    ],
+    "stands": [
+      "IPP",
+      "401IPP",
+      "501IPP",
+      "601IPP",
+      "701IPP"
+    ]
+  }
+]

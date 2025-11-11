@@ -9,5 +9,6 @@
 
 #### hecho:
 
+- hacer la lista de categorias
 - añadir un boton para volver al menu principal
 - eliminar el boton de la ubicacion

@@ -91,7 +91,7 @@ local back_png = love.graphics.newImage("assets/images/back.png")
 -- variables
 local copyright = "Copyright © 2025 Lucia Gianluca"
 local debug = true
-local offlinemode = true
+local offlinemode = false
 local experimentalheader = false
 local last_pinch_dist = nil
 local jsondltimer = 0

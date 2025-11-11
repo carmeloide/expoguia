@@ -174,6 +174,18 @@ function state_machine:draw()
 	self:_call("draw")
 end
 
+-- press, moved and release
+function state_machine:handle_press()
+	self:_call("handle_press")
+end
+function state_machine:handle_moved()
+	self:_call("handle_moved")
+end
+function state_machine:handle_release()
+	self:_call("handle_release")
+end
+
+
 --for compatibility when a state machine is nested as a state in another machine
 function state_machine:enter(parent)
 	self.parent = parent

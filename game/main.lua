@@ -87,9 +87,7 @@ local stand_info_top_bg_png = love.graphics.newImage("assets/images/stand-info-t
 local stand_info_bottom_fg_png = love.graphics.newImage("assets/images/stand-info-bottom-fg.png")
 local stand_info_bottom_bg_png = love.graphics.newImage("assets/images/stand-info-bottom-bg.png")
 -- button textures
-local recenter_1_png = love.graphics.newImage("assets/images/recenter-1.png")
-local recenter_2_png = love.graphics.newImage("assets/images/recenter-2.png")
-
+local back_png = love.graphics.newImage("assets/images/back.png")
 -- variables
 local copyright = "Copyright © 2025 Lucia Gianluca"
 local debug = true
@@ -366,6 +364,12 @@ ui_state_machine:add_state("menu", {
 
 
     love.graphics.pop()
+  end,
+  handle_press = function(self)
+  end,
+  handle_moved = function(self)
+  end,
+  handle_release = function(self)
   end
 })
 
@@ -389,6 +393,7 @@ ui_state_machine:add_state("map", {
     floatingui.timer = 0
     floatingui.timer = love.timer.getTime()
     selected_stand = nil
+    -- dialog_state_machine:set_state("idle")
   end,
   update = function(self, dt)
     -- actualizar autolock
@@ -494,8 +499,12 @@ ui_state_machine:add_state("map", {
       love.graphics.setColor(r, g, b, a)
       love.graphics.print(text, 10, safe.h-100)
     end
-
-
+  end,
+  handle_press = function(self)
+  end,
+  handle_moved = function(self)
+  end,
+  handle_release = function(self)
   end
 })
 
@@ -512,6 +521,12 @@ dialog_state_machine:add_state("ilde", {
   update = function(self, dt)
   end,
   draw = function(self)
+  end,
+  handle_press = function(self)
+  end,
+  handle_moved = function(self)
+  end,
+  handle_release = function(self)
   end
 })
 
@@ -525,6 +540,12 @@ dialog_state_machine:add_state("about", {
   update = function(self, dt)
   end,
   draw = function(self)
+  end,
+  handle_press = function(self)
+  end,
+  handle_moved = function(self)
+  end,
+  handle_release = function(self)
   end
 })
 -- filtros
@@ -537,6 +558,9 @@ dialog_state_machine:add_state("filter", {
   exit = function(self)
   end,
   update = function(self, dt)
+    if ui_state_machine:in_state("menu") then
+      dialog_state_machine:set_state("idle")
+    end
   end,
   draw = function(self)
     local content = {
@@ -544,6 +568,12 @@ dialog_state_machine:add_state("filter", {
       mode = "include" -- esto debería ser dinámico
     }
     expo.dialog(0, dialog.y, safe, content, stands, font_reddit_regular_32, font_reddit_regular_16, Color)
+  end,
+  handle_press = function(self)
+  end,
+  handle_moved = function(self)
+  end,
+  handle_release = function(self)
   end
 })
 
@@ -593,6 +623,8 @@ function love.load()
 
   -- button creation
   -- En love.load, registra el botón así:
+
+  -- boton de filtros
   uibuttons.register{
     get_rect = function()
       local texto = "Filtrar"
@@ -601,7 +633,7 @@ function love.load()
       local total_w = text_w + 2 * radius
       local total_h = 2 * radius
       -- Tu fórmula original para el centro del botón:
-      local cx = safe.w - 14 - (24*2) - 14 + floatingui.lx
+      local cx = safe.w - 14 + floatingui.lx
       local cy = safe.h - 14 + floatingui.ly
       -- El área de toque debe ser el rectángulo que contiene el píldora, alineado a la esquina inferior derecha
       local x = cx - total_w
@@ -622,50 +654,53 @@ function love.load()
     end,
     onpress = function(self)
       print("Botón Filtrar presionado")
-      -- Aquí puedes abrir el diálogo de filtros, etc.
+      -- dialog_state_machine:set_state("filter")
+    end,
+    onrelease = function(self)
+      print("Botón Filtrar presionado")
       dialog_state_machine:set_state("filter")
     end
   }
-  uibuttons.register{
-  get_rect = function()
-    local cx = safe.w - 38 + floatingui.lx
-    local cy = safe.h - 38 + floatingui.ly
-    local radius = 24
-    -- Área de toque: rectángulo circunscrito al círculo
-    local x = cx - radius
-    local y = cy - radius
-    local w = radius * 2
-    local h = radius * 2
-    return x, y, w, h, cx, cy, radius
-  end,
-  draw = function(self)
-    local x, y, w, h, cx, cy, radius = self.get_rect()
-    -- Fondo del botón
-    if self.pressed then
-      r, g, b, a = expo.hexcolorfromstring(Color.button_pressed)
-    else
-      r, g, b, a = expo.hexcolorfromstring(Color.button_idle)
-    end
-    love.graphics.setColor(r, g, b, a)
-    love.graphics.circle("fill", cx, cy, radius)
-    -- Ícono (Color.text)
-    r, g, b, a = expo.hexcolorfromstring(Color.text)
-    love.graphics.setColor(r, g, b, a)
-    local scale = 0.18
-    local centered = true
-    if not centered then
-      love.graphics.draw(recenter_1_png, cx, cy, 0, scale, scale, 0.5*recenter_1_png:getWidth(), 0.5*recenter_1_png:getHeight())
-    else
-      love.graphics.draw(recenter_2_png, cx, cy, 0, scale, scale, 0.5*recenter_2_png:getWidth(), 0.5*recenter_2_png:getHeight())
-    end
-  end,
-  onpress = function(self)
-    print("Botón de recentrado presionado")
-    -- Aquí pon la lógica de recentrado real si quieres
-    -- floatingui.lx = 0; floatingui.ly = 0
-  end
-}
 
+  -- boton de volver al menu
+  uibuttons.register{
+    get_rect = function()
+      local cx = safe.x + 38 - floatingui.lx
+      local cy = safe.y + 38 - floatingui.ly
+      local radius = 24
+      -- Área de toque: rectángulo circunscrito al círculo
+      local x = cx - radius
+      local y = cy - radius
+      local w = radius * 2
+      local h = radius * 2
+      return x, y, w, h, cx, cy, radius
+    end,
+    draw = function(self)
+      local x, y, w, h, cx, cy, radius = self.get_rect()
+      -- Fondo del botón
+      if self.pressed then
+        r, g, b, a = expo.hexcolorfromstring(Color.button_pressed)
+      else
+        r, g, b, a = expo.hexcolorfromstring(Color.button_idle)
+      end
+      love.graphics.setColor(r, g, b, a)
+      love.graphics.circle("fill", cx, cy, radius)
+      -- Ícono (Color.text)
+      r, g, b, a = expo.hexcolorfromstring(Color.text)
+      love.graphics.setColor(r, g, b, a)
+      local scale = 0.30
+      love.graphics.draw(back_png, cx, cy, 0, scale, scale, 0.5*back_png:getWidth(), 0.5*back_png:getHeight())
+
+    end,
+    onpress = function(self)
+      -- print("")
+    end,
+    onrelease = function(self)
+      print("Botón de volver presionado")
+      ui_state_machine:set_state("menu")
+    end
+
+  }
 
   overlayStats.load() -- Should always be called last
 end
@@ -682,6 +717,9 @@ function love.update(dt)
 
   ui_state_machine:update(dt)
   dialog_state_machine:update(dt)
+  -- if ui_state_machine:in_state("menu") then
+  --   dialog_state_machine:set_state("idle")
+  -- end
   -- Your game update here
   overlayStats.update(dt) -- Should always be called last
 end
@@ -696,21 +734,7 @@ local function draw_always_shown_content()
   floatingui.ly = expo.lerpinout(floatingui.ly, floatingui.y, elapsed)
 
 
-  -- dibujar el botón de recentrado
-  local r, g, b, a = expo.hexcolorfromstring(Color.button_idle)
-  love.graphics.setColor(r, g, b, a)
-  love.graphics.circle("fill", safe.w-38+floatingui.lx, safe.h-38+floatingui.ly, 24)
-  -- ícono
-  local r, g, b, a = expo.hexcolorfromstring(Color.text)
-  love.graphics.setColor(r, g, b, a)
-  local scale = 0.18
-  local centered = true -- temporal hasta que logre dar con el clavo xd
-  if not centered then
-    love.graphics.draw(recenter_1_png, safe.w-38+floatingui.lx, safe.h-38+floatingui.ly, 0, scale, scale, 0.5*recenter_1_png:getWidth(), 0.5*recenter_1_png:getHeight())
-  else
-    love.graphics.draw(recenter_2_png, safe.w-38+floatingui.lx, safe.h-38+floatingui.ly, 0, scale, scale, 0.5*recenter_2_png:getWidth(), 0.5*recenter_2_png:getHeight())
-  end
-
+  -- dibujar botones
   uibuttons.draw()
 
 end
@@ -766,6 +790,11 @@ end
 
 
 local function handlepressed(id, x, y, button, istouch)
+
+  local pressed_button = uibuttons.handle_press(x - safe.x, y - safe.y)
+
+  ui_state_machine:handle_press()
+  dialog_state_machine:handle_press()
 
   if dialog_state_machine:in_state("filter") then
 		if expo.inrange(x, 0, safe.w) and
@@ -836,7 +865,6 @@ local function handlepressed(id, x, y, button, istouch)
       ui_state_machine:set_state("menu")
     else
       -- Solo permitir drag si NO se tocó un botón
-      local pressed_button = uibuttons.handle_press(x - safe.x, y - safe.y)
       if not pressed_button and not istouch then
         expoguia_map.allowdrag = true
       end
@@ -844,12 +872,14 @@ local function handlepressed(id, x, y, button, istouch)
     end
   end
 
-
-  -- Si no es estado "map", igual chequea botones
-  uibuttons.handle_press(x - safe.x, y - safe.y)
 end
 
 local function handlemoved(id, x, y, dx, dy, istouch)
+
+
+  ui_state_machine:handle_moved()
+  dialog_state_machine:handle_moved()
+
   if debug then
     -- print("moved: " .. id .. " x,y: " .. x .. "," .. y .. " dx,dy: " .. dx .. "," .. dy)
   end
@@ -887,6 +917,17 @@ local function handlemoved(id, x, y, dx, dy, istouch)
 end
 
 local function handlereleased(id, x, y, button, istouch)
+
+
+  ui_state_machine:handle_release()
+  dialog_state_machine:handle_release()
+
+  local released_button = uibuttons.handle_release(x - safe.x, y - safe.y)
+
+  if released_button then
+    return
+  end
+
   if debug then
     -- print("released: " .. id .. " x,y: " .. x .. "," .. y .. " button: " .. button)
   end
@@ -902,14 +943,16 @@ local function handlereleased(id, x, y, button, istouch)
   end
 
   if ui_state_machine:in_state("menu") then
-    if expo.inrange(x, 0*safe.w, 0.1*safe.w) and
-       expo.inrange(y, 0*safe.h, 0.1*safe.h) then
-      print("about dialog")
-    else
+    --[[
+      if expo.inrange(x, 0*safe.w, 0.1*safe.w) and
+         expo.inrange(y, 0*safe.h, 0.1*safe.h) then
+        print("about dialog")
+      else
+    ]]
       if not errorOffline and jsonFile ~= 0 then
         ui_state_machine:set_state("map")
       end
-    end
+    -- end
   end
 
   if ui_state_machine:in_state("map") then
@@ -928,7 +971,6 @@ local function handlereleased(id, x, y, button, istouch)
   end
 
 
-  uibuttons.handle_release(x - safe.x, y - safe.y)
 end
 
 

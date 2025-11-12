@@ -90,7 +90,7 @@ local stand_info_bottom_bg_png = love.graphics.newImage("assets/images/stand-inf
 local back_png = love.graphics.newImage("assets/images/back.png")
 -- variables
 local copyright = "Copyright © 2025 Lucia Gianluca"
-local debug = true
+local debug = false
 local offlinemode = false
 local experimentalheader = false
 local last_pinch_dist = nil
@@ -350,8 +350,8 @@ ui_state_machine:add_state("menu", {
       filters_data = json.decode(filters_json)
 
       -- for sugerido por chatgpt.
-      for _, cat in ipairs(filterData) do
-        UI.categories[cat.id] = {
+      for _, cat in ipairs(filters_data) do
+        filters_ui.categories[cat.id] = {
             name = cat.category,
             icons = cat.icons,
             settings = cat.settings or {},
@@ -362,7 +362,7 @@ ui_state_machine:add_state("menu", {
         }
 
         for _, stand in ipairs(cat.stands or {}) do
-            UI.categories[cat.id].stands[stand] = false
+            filters_ui.categories[cat.id].stands[stand] = false
         end
       end
 
@@ -728,7 +728,7 @@ function love.load()
       -- print("")
     end,
     onrelease = function(self)
-      print("Botón de volver presionado")
+      print("Botón de volver")
       ui_state_machine:set_state("menu")
     end
 

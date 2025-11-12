@@ -160,25 +160,40 @@ local filters_ui = {
   categories = {}
 }
 
+-- ========================================
+-- FUNCIÓN: try_download_json
+-- ========================================
+-- Intenta descargar el archivo JSON de stands desde internet.
+-- Esta función es llamada al iniciar la app si no está en modo offline.
+--
+-- Funcionamiento:
+--   1. Verifica si la librería https está cargada
+--   2. Realiza una petición HTTP GET a la URL configurada (con timeout de 5 segundos)
+--   3. Maneja ambos formatos de retorno posibles (code, body o body, code)
+--   4. Si la respuesta es exitosa (código 200), guarda el archivo descargado
+--   5. Imprime logs de debug para diagnosticar problemas
+--
+-- Retorna: boolean - true si la descarga y guardado fue exitoso, false en caso contrario
 local function try_download_json()
   if not https then
     print("https library not loaded")
     return false
   end
 
-  -- Intenta ambas variantes de retorno
+  -- Intenta realizar la petición HTTP a la URL configurada
+  -- Timeout de 5 segundos para evitar que se cuelgue la app
   local code, body = https.request(download_url, nil, 5)
   if type(code) == "string" and tonumber(body) then
-    -- Puede estar invertido
+    -- Puede estar invertido (algunas versiones de https retornan en orden inverso)
     code, body = tonumber(body), code
   end
 
   print("https.request code:", code)
   if body then print("https.request body (first 100 chars):", body:sub(1, 100)) end
 
-  -- Verifica si la descarga fue exitosa
+  -- Verifica si la descarga fue exitosa (código HTTP 200 OK)
   if code == 200 and body and #body > 0 then
-    -- Guardar el archivo descargado
+    -- Guardar el archivo descargado al path especificado
     local ok = love.filesystem.write(download_path, body)
     if ok then
       print("Descarga exitosa de stands.json")
@@ -191,6 +206,22 @@ local function try_download_json()
 end
 
 -- stand table
+-- ========================================
+-- FUNCIÓN: get_stand_texture
+-- ========================================
+-- Retorna la textura (imagen) correspondiente a un stand según su especialidad.
+-- Esta función mapea los códigos de especialidad a sus imágenes específicas.
+--
+-- Parámetros:
+--   stand (table): objeto del stand que contiene al menos:
+--     - especialidad (string): código de especialidad (ej: "E", "C", "IPP", etc.)
+--
+-- Funcionamiento:
+--   1. Evalúa el código de especialidad del stand
+--   2. Retorna la textura PNG correspondiente a esa especialidad
+--   3. Si la especialidad no es reconocida, usa la textura por defecto
+--
+-- Retorna: love.Image - la textura PNG del stand
 local function get_stand_texture(stand)
   if stand.especialidad == "E" then
     return stand_electro_png
@@ -211,27 +242,224 @@ local function get_stand_texture(stand)
   end
 end
 
--- función para detectar si se tocó un stand
--- cómo funciona: recorre todos los stands y calcula la distancia al punto (px, py).
--- si la distancia es menor al radio del stand (asumido como círculo), entonces se tocó el stand.
--- retorna el stand tocado o nil si no se tocó ninguno.
+-- ========================================
+-- FUNCIÓN: get_stand_at_point
+-- ========================================
+-- Detecta si se tocó un stand en coordenadas de pantalla específicas.
+-- Usa detección de colisión circular para determinar qué stand fue tocado.
+--
+-- Parámetros:
+--   px (number): posición X en coordenadas de pantalla
+--   py (number): posición Y en coordenadas de pantalla
+--
+-- Funcionamiento:
+--   1. Recorre todos los stands en la tabla de stands
+--   2. Para cada stand, calcula su posición en pantalla (convertido desde coordenadas lógicas)
+--   3. Calcula la distancia al cuadrado entre el punto tocado y el centro del stand
+--   4. Verifica si la distancia es menor al radio del stand (considerado como círculo)
+--   5. Mantiene track del stand más cercano (en caso de solapamientos)
+--   6. Retorna el stand más cercano al punto, o nil si no hay colisión
+--
+-- Retorna: table - el objeto del stand tocado, o nil si no se tocó ninguno
 local function get_stand_at_point(px, py)
   local closest_stand = nil
   local min_dist_sq = math.huge
+  -- Iterar sobre todos los stands para encontrar el más cercano al punto tocado
   for _, stand in ipairs(stands) do
     local tex = get_stand_texture(stand)
     local map = expoguia_map
     local map_w, map_h = map.png:getWidth(), map.png:getHeight()
+    -- Convertir coordenadas lógicas del stand (-1000 a 1000) a coordenadas de pantalla
     local sx = map.x + ((stand.x + 1000) / 2000) * map_w * map.scale - map_w * map.scale / 2
     local sy = map.y + ((stand.y + 1000) / 2000) * map_h * map.scale - map_h * map.scale / 2
+    -- Radio de colisión del stand (círculo)
     local r = tex:getWidth() * stand_scale * 0.9
+    -- Calcular la distancia al cuadrado (evita usar sqrt que es más lento)
     local dist_sq = (px - sx)^2 + (py - sy)^2
+    -- Si el punto está dentro del radio Y es el más cercano encontrado hasta ahora
     if dist_sq <= r^2 and dist_sq < min_dist_sq then
       min_dist_sq = dist_sq
       closest_stand = stand
     end
   end
+  -- Retornar el stand más cercano al punto, o nil si no hay colisión
   return closest_stand
+end
+
+
+-- ========================================
+-- FUNCIÓN: isStandFiltered
+-- ========================================
+-- Determina si un stand debe mostrarse con opacidad normal o reducida
+-- según los filtros actuales.
+--
+-- Parámetros:
+--   standId (string|number): ID del stand a verificar (ej: "403E", "101")
+--
+-- Funcionamiento:
+--   1. Recorre todas las categorías de filtros
+--   2. Verifica si el stand está seleccionado en alguna categoría
+--   3. Retorna true si el stand PASA el filtro (debe mostrarse normal)
+--   4. Retorna false si el stand NO pasa el filtro (debe mostrarse opaco)
+--
+-- Retorna: boolean - true si el stand coincide con los filtros, false si no
+local function isStandFiltered(standId)
+  -- Crear una tabla para guardar qué stands están seleccionados
+  local selectedStands = {}
+
+  -- Recorrer todas las categorías para saber qué stands están seleccionados
+  for _, cat in pairs(filters_ui.categories) do
+    for stand, isSelected in pairs(cat.stands) do
+      if isSelected then
+        selectedStands[stand] = true
+      end
+    end
+  end
+
+  -- Si no hay stands seleccionados, mostrar todos con opacidad normal
+  if next(selectedStands) == nil then
+    return true
+  end
+
+  -- Convertir standId a string para comparar
+  standId = tostring(standId)
+
+  -- Retornar true si el stand está seleccionado (pasa el filtro)
+  return selectedStands[standId] == true
+end
+
+-- ========================================
+-- FUNCIÓN 1: toggleCategory
+-- ========================================
+-- Alterna (activa/desactiva) una categoría COMPLETA y todos sus stands.
+-- Esta función es útil para seleccionar/deseleccionar rápidamente grupos de stands.
+--
+-- Parámetros:
+--   cat (table): tabla de categoría que contiene:
+--     - selected (boolean): estado actual de la categoría
+--     - stands (table): tabla de stands donde las claves son IDs y valores son booleans
+--
+-- Funcionamiento:
+--   1. Invierte el estado actual de la categoría (true -> false, false -> true)
+--   2. Aplica ese nuevo estado a TODOS los stands dentro de la categoría
+function toggleCategory(cat)
+  -- Invertir el estado actual de la categoría
+  -- Si estaba seleccionada (true), pasa a no seleccionada (false) y viceversa
+  local newState = not cat.selected
+  cat.selected = newState
+
+  -- Actualizar TODOS los stands dentro de esta categoría
+  -- al mismo estado que la categoría
+  for stand, _ in pairs(cat.stands) do
+    cat.stands[stand] = newState
+  end
+end
+
+-- ========================================
+-- FUNCIÓN 2: toggleStand
+-- ========================================
+-- Alterna (activa/desactiva) UN STAND específico dentro de una categoría
+-- y automáticamente actualiza el estado de la categoría según todos sus stands.
+--
+-- Parámetros:
+--   cat (table): tabla de la categoría que contiene los stands
+--   stand (string): ID o clave del stand a alternar
+--
+-- Funcionamiento:
+--   1. Invierte el estado del stand individual (true -> false, false -> true)
+--   2. Recorre TODOS los stands de la categoría para verificar si están seleccionados
+--   3. Si TODOS los stands están seleccionados, marca la categoría como seleccionada
+--   4. Si AL MENOS UNO está sin seleccionar, marca la categoría como no seleccionada
+--   5. Esto mantiene sincronizado el estado de la categoría con sus stands
+function toggleStand(cat, stand)
+    -- Invertir el estado del stand individual
+    -- Si estaba seleccionado, lo deselecciona y viceversa
+    cat.stands[stand] = not cat.stands[stand]
+
+    -- Después de cambiar el stand, necesitamos verificar
+    -- si TODOS los stands de la categoría están seleccionados
+    local all = true
+    for _, selected in pairs(cat.stands) do
+        -- Si encontramos UN stand que NO está seleccionado...
+        if not selected then
+            -- ...entonces no todos están seleccionados
+            all = false
+            break  -- Salir del bucle, ya encontramos uno sin seleccionar
+        end
+    end
+    -- Actualizar el estado de la categoría según si todos sus stands están seleccionados
+    cat.selected = all
+end
+
+-- ========================================
+-- FUNCIÓN 3: applyFilters
+-- ========================================
+-- Filtra la lista de stands según qué está seleccionado en el UI.
+-- Esta función es útil cuando necesitas obtener una lista filtrada de stands
+-- para operar sobre ella (por ejemplo, contar cuántos stands coinciden).
+--
+-- Parámetros:
+--   allStands (table): tabla de TODOS los stands en el juego
+--   UI (table): tabla del UI con categorías (no se usa actualmente)
+--   mode (string): modo de filtrado - "incluir" o "excluir"
+--
+-- Funcionamiento del modo "incluir":
+--   1. Recorre todas las categorías del UI
+--   2. Crea una tabla con los IDs de stands seleccionados
+--   3. Si no hay stands seleccionados, devuelve TODOS los stands (sin filtrar)
+--   4. Si hay seleccionados, devuelve SOLO los que están en la tabla seleccionada
+--
+-- Funcionamiento del modo "excluir":
+--   1. Recorre todas las categorías del UI
+--   2. Crea una tabla con los IDs de stands seleccionados
+--   3. Devuelve todos los stands EXCEPTO los que están seleccionados
+--
+-- Retorna: table - lista de stands filtrada según el modo
+function applyFilters(allStands, UI, mode)
+    -- Crear una tabla vacía para guardar los IDs de stands seleccionados
+    local selected = {}
+
+    -- Recorrer TODAS las categorías del UI
+    for _, cat in pairs(filters_ui.categories) do
+        -- Recorrer TODOS los stands dentro de cada categoría
+        for stand, isSelected in pairs(cat.stands) do
+            -- Si el stand está seleccionado, agregarlo a la tabla "selected"
+            if isSelected then
+                selected[stand] = true
+            end
+        end
+    end
+
+    -- Verificar si hay al menos 1 stand seleccionado
+    -- "next(selected) == nil" significa que la tabla está vacía
+    if next(selected) == nil then
+        -- Si no hay nada seleccionado, devolver TODOS los stands sin filtrar
+        return allStands
+    end
+
+    -- Crear una tabla vacía para guardar los stands que pasarán el filtro
+    local filtered = {}
+
+    -- Recorrer TODOS los stands de la lista original
+    for _, standObj in ipairs(allStands) do
+        -- Obtener el ID del stand (ej: "403E")
+        local id = standObj.id
+
+        -- Verificar si este stand está en la tabla de seleccionados
+        local included = selected[id] == true
+
+        -- Aplicar el filtro según el modo:
+        if mode == "incluir" and included then
+            -- Modo "incluir": agregar solo los stands que están seleccionados
+            table.insert(filtered, standObj)
+        elseif mode == "excluir" and not included then
+            -- Modo "excluir": agregar solo los stands que NO están seleccionados
+            table.insert(filtered, standObj)
+        end
+    end
+
+    -- Devolver la lista filtrada
+    return filtered
 end
 
 -- header bar (just for linux, windows and macos)
@@ -301,99 +529,139 @@ end
 -- Crear la máquina de estados primero
 local ui_state_machine = StateMachine({}, "menu")
 
--- Estado menú
+-- ========================================
+-- ESTADO: menu
+-- ========================================
+-- Estado inicial de la aplicación.
+-- Muestra la pantalla de inicio con el título de ExpoGuía y un mensaje para comenzar.
+-- También maneja la descarga y carga del archivo JSON de stands y filtros.
+--
+-- Funciones del estado:
+--   - enter: Inicializa variables cuando se entra al estado
+--   - exit: Limpia y prepara transición cuando se sale del estado
+--   - update: Lógica de actualización cada frame (descarga JSON, carga datos)
+--   - draw: Renderiza la pantalla del menú
+--   - handle_*: Métodos para procesar input (no usados en este estado)
+--
+-- Transiciones:
+--   - A "map" cuando el usuario toca la pantalla (si JSON está cargado)
 ui_state_machine:add_state("menu", {
   enter = function(self, prev)
     print("entered menu")
+    -- Posicionar la UI flotante abajo de la pantalla
     floatingui.y = 64
 
+    -- Posicionar la headerbar en la parte superior
 		headerbar.x = 0
 		headerbar.y = 0
     headerbar.h = 26
   end,
   exit = function(self)
     print("exited menu")
-    -- iniciar un timer, usado para lerp de floatingui.ly
+    -- Iniciar un timer para la animación de interpolación de floatingui
     floatingui.timer = 0
     floatingui.timer = love.timer.getTime()
   end,
   update = function(self, dt)
+    -- Calcular escala del título para que se ajuste a la pantalla
+    -- 0.75 significa que ocupará el 75% del espacio disponible
     expoguia_title.scale = expo.scale(safe.w, safe.h, expoguia_title.png:getWidth(), expoguia_title.png:getHeight(), 0.75)
+    -- Centrar el título en la pantalla
     expoguia_title.x, expoguia_title.y = 0.5*safe.w, 0.5*safe.h
 
+    -- Ajustar ancho de la headerbar al ancho de la pantalla
     headerbar.w = safe.w
 
-    -- momento del json (importar y decodificar)
+    -- ========================================
+    -- LÓGICA DE CARGA DE JSON
+    -- ========================================
+    -- jsondltimer es un contador que espera 3 frames antes de intentar descargar
+    -- Esto evita que la descarga interfiera con la inicialización de otros sistemas
     if jsonFile == 0 and jsondltimer == 3 then
       if not offlinemode and not errorOffline then
         if debug then
           print("starting to download the json")
         end
+        -- Intentar descargar el JSON desde internet
         local ok = try_download_json()
         if ok then
+          -- Si la descarga fue exitosa, leer el archivo guardado
           jsonFile = love.filesystem.read(download_path)
         else
-          -- mostrar al usuario un mensaje de error para que reinicie la app conectado a internet
+          -- Si falla, marcar error y mostrar mensaje al usuario
           errorOffline = true
         end
       elseif offlinemode then
-        -- usar archivo local
+        -- En modo offline, usar archivo local
         jsonFile = love.filesystem.read("assets/json/offline.json")
       end
 
+	    -- Si tenemos el JSON y no hay error, decodificarlo
 	    if jsonFile and not errorOffline then
+	      -- Convertir string JSON a tabla Lua
 	      stands = json.decode(jsonFile)
+	      -- Automatizar los IDs de los stands (asignar números secuenciales)
 	      stands = expo.automate_stand_id(stands)
 	    end
 
-      -- json de las categorias
+      -- Cargar el JSON de categorías de filtros
       filters_data = json.decode(filters_json)
 
-      -- for sugerido por chatgpt.
+      -- Construir la estructura de UI de filtros a partir del JSON
+      -- Cada categoría tendrá sus propios stands seleccionables
       for _, cat in ipairs(filters_data) do
+        -- Crear entrada para esta categoría en filters_ui
         filters_ui.categories[cat.id] = {
-            name = cat.category,
-            icons = cat.icons,
-            settings = cat.settings or {},
-            categoryStands = cat.category_stands or {},
-            stands = {},
-            selected = false,      -- estado de categoría
-            expanded = true        -- si la desplegás o no
+            name = cat.category,              -- Nombre mostrable (ej: "Electromecánica")
+            icons = cat.icons,                -- Iconos de la categoría
+            settings = cat.settings or {},    -- Configuraciones especiales
+            categoryStands = cat.category_stands or {},  -- IDs de especialidades
+            stands = {},                      -- Tabla de stands seleccionables
+            selected = false,                 -- ¿Está seleccionada la categoría?
+            expanded = true                   -- ¿Está desplegada en el UI?
         }
 
+        -- Inicializar todos los stands de esta categoría como no seleccionados
         for _, stand in ipairs(cat.stands or {}) do
             filters_ui.categories[cat.id].stands[stand] = false
         end
       end
 
-      -- fin del for
-
     elseif jsondltimer < 3 and not errorOffline then
+      -- Incrementar el contador de espera
       jsondltimer = jsondltimer + 1
     end
 
   end,
   draw = function(self)
     love.graphics.push()
-    -- PNG del título
+    -- Dibujar el PNG del título escalado
     love.graphics.draw(expoguia_title.png, expoguia_title.x, expoguia_title.y, 0, expoguia_title.scale, expoguia_title.scale, 0.5*expoguia_title.png:getWidth(), 0.5*expoguia_title.png:getHeight())
+
+    -- Determinar el mensaje a mostrar según el estado de la descarga
+    local font, text
     if errorOffline then
+      -- Error: no hay conexión a internet
       font = font_reddit_regular_16
       text = "Conéctese a internet y reinicie la app."
     elseif jsonFile == 0 then
+      -- En progreso: descargando JSON
       font = font_reddit_regular_16
       text = "Por favor espere. Descargando stands..."
     else
+      -- Completado: listo para comenzar
       font = font_reddit_regular_24
       text = "Toca la pantalla para empezar"
     end
+
+    -- Dibujar el mensaje centrado
     love.graphics.setFont(font)
     love.graphics.print(text, safe.w/2, safe.h*0.82, 0, 1,1, font:getWidth(text)/2, font:getHeight()/2)
 
+    -- Dibujar el copyright en la parte inferior
     font = font_reddit_regular_13
     love.graphics.setFont(font)
     love.graphics.print(copyright, safe.w/2, safe.h-5, 0, 1,1, font:getWidth(copyright)/2, font:getHeight())
-
 
     love.graphics.pop()
   end,
@@ -472,6 +740,7 @@ ui_state_machine:add_state("map", {
     love.graphics.draw(expoguia_map.png, expoguia_map.x, expoguia_map.y, 0, expoguia_map.scale, expoguia_map.scale, 0.5*expoguia_map.png:getWidth(), 0.5*expoguia_map.png:getHeight())
 
     -- Renderizar stands
+    -- Este bucle dibuja todos los stands con la opacidad aproppiada según los filtros
     for _, stand in ipairs(stands) do
       local tex = get_stand_texture(stand)
       -- Convertir coordenadas lógicas a pantalla
@@ -482,10 +751,25 @@ ui_state_machine:add_state("map", {
       local sy = map.y + ((stand.y + 1000) / 2000) * map_h * map.scale - map_h * map.scale / 2
 
       stand_scale = math.min(0.30, map.scale*0.8)
+
+      -- Determinar la opacidad del stand según si pasa el filtro actual
+      -- isStandFiltered() retorna true si el stand está en los filtros seleccionados
+      local opacity = 1.0  -- opacidad normal (stand visible)
+      if not isStandFiltered(stand.id) then
+        opacity = 0.30  -- opacidad reducida (stand atenuado)
+      end
+
+      -- Establecer el color con la opacidad calculada
+      -- Mantener RGB en blanco (1, 1, 1) y solo cambiar la opacidad (alpha)
+      love.graphics.setColor(1, 1, 1, opacity)
+
       -- Dibujar la textura centrada
       -- love.graphics.draw( drawable, x, y, r, sx, sy, ox, oy, kx, ky )
       love.graphics.draw(tex, sx, sy, 0, stand_scale, stand_scale, tex:getWidth() / 2, tex:getHeight())
     end
+
+    -- Resetear el color a blanco y opacidad completa para los siguientes elementos
+    love.graphics.setColor(1, 1, 1, 1)
 
     -- Mostrar info del stand seleccionado
     if selected_stand then
@@ -610,8 +894,17 @@ dialog_state_machine:add_state("filter", {
 })
 
 --- Realiza un zoom logarítmico en el mapa, manteniendo el punto (px, py) fijo en pantalla
--- factor number: factor de multiplicación (>1 para acercar, <1 para alejar)
--- px, py: punto de referencia en coordenadas de pantalla (por defecto centro)
+--
+-- Parámetros:
+--   factor (number): factor de multiplicación (>1 para acercar, <1 para alejar)
+--   px (number): punto de referencia en coordenadas de pantalla X (opcional, por defecto centro)
+--   py (number): punto de referencia en coordenadas de pantalla Y (opcional, por defecto centro)
+--
+-- Funcionamiento:
+--   1. Calcula la nueva escala multiplicando la escala actual por el factor
+--   2. Limita la nueva escala entre minZoom y maxZoom para evitar zoom extremo
+--   3. Ajusta la posición del mapa para que el punto bajo el cursor permanezca fijo
+--   4. Usa la fórmula matemática de zoom: new_x = px - (px - map.x) * (new_scale / old_scale)
 local function zoom_map(factor, px, py)
   local map = expoguia_map
   local old_scale = map.scale
@@ -691,6 +984,9 @@ function love.load()
     onrelease = function(self)
       print("Botón Filtrar presionado")
       dialog_state_machine:set_state("filter")
+
+      -- toggleCategory(filters_ui.categories["elec"])
+
     end
   }
 
@@ -738,6 +1034,11 @@ function love.load()
 end
 
 function love.update(dt)
+  -- lovebird
+  if debug then
+    require("lib.lovebird").update()
+  end
+
   -- si dt es demasiado alto, limitarlo a 0.07.
   if dt > 0.07 then
     dt = 0.07
@@ -822,33 +1123,45 @@ end
 
 
 local function handlepressed(id, x, y, button, istouch)
-
+  -- ========================================
+  -- PROCESAR ENTRADA DE BOTONES DE UI
+  -- ========================================
+  -- Detectar si se presionó algún botón registrado (Filtrar, Volver, etc.)
+  -- Retorna el botón presionado o nil
   local pressed_button = uibuttons.handle_press(x - safe.x, y - safe.y)
 
+  -- Notificar a las máquinas de estado sobre la entrada
   ui_state_machine:handle_press()
   dialog_state_machine:handle_press()
 
+  -- ========================================
+  -- MANEJAR ENTRADA EN DIÁLOGO DE FILTROS
+  -- ========================================
   if dialog_state_machine:in_state("filter") then
+    -- Detectar si el toque está fuera del diálogo (en el área oscura superior)
+    -- Si es así, marcar que el usuario quiere cerrar el diálogo
 		if expo.inrange(x, 0, safe.w) and
 		   expo.inrange(y, 0, dialog.y) then
-		  -- begin closing
+		  -- El usuario tocó fuera del diálogo, permitir cerrar
 		  dialog_closing = true
-			-- dialog_state_machine:set_state("idle")
 		else
+		  -- El usuario tocó dentro del diálogo
 			dialog_closing = false
     end
-    -- chequear si se toco el boton de include/exclude
+
+    -- Detectar si el usuario tocó el botón de incluir/excluir
     local radius = 24
-    -- love.graphics.rectangle("fill", x+30, y+radius*4+4, safe.w-60, radius*1.5, radius*0.75)
     if expo.inrange(x, 30, safe.w-60) and
        expo.inrange(y, dialog.y+radius*4+4, radius*1.5) then
+      -- Alternar el modo de filtrado (incluir <-> excluir)
       if Filtros.exclude then
         Filtros.exclude = false
       else
         Filtros.exclude = true
       end
 
-    -- chequear si se esta tocando la headerbar. si es asi, permitir el arrastre para expandir el dialogo
+    -- Detectar si el usuario está arrastrando la headerbar del diálogo
+    -- Esta área permite expandir/contraer el diálogo verticalmente
     elseif expo.inrange(y, dialog.y, dialog.y + dialog.borderheight) then
       dialog.dragging = true
     else
@@ -858,15 +1171,12 @@ local function handlepressed(id, x, y, button, istouch)
 		return
   end
 
+  -- ========================================
+  -- LÓGICA DE DEBUG: MOSTRAR COORDENADAS
+  -- ========================================
   if debug then
-    -- if love.system.getOS() == "Linux" then
-    --   print("pressed: " .. tostring(id) .. " x,y: " .. x .. "," .. y .. " button: " .. button)
-    -- end
-
-    -- cuentas para sacar las coordenadas en el mapa. suponer que las coordenadas van desde -1000 a 1000, tanto en X como en Y.
-    -- guardar estos valores en debug_map_coord_x y debug_map_coord_y
-
-    -- 1. Ajustar por el offset del mapa
+    -- Convertir coordenadas de pantalla a coordenadas lógicas del mapa (-1000 a 1000)
+    -- 1. Ajustar por el offset y escala del mapa
     local mx = (x - expoguia_map.x) / expoguia_map.scale
     local my = (y - expoguia_map.y) / expoguia_map.scale
 
@@ -883,15 +1193,18 @@ local function handlepressed(id, x, y, button, istouch)
     print("debug_map_coord_x:", debug_map_coord_x, "debug_map_coord_y:", debug_map_coord_y)
   end
 
+  -- ========================================
+  -- MANEJAR ENTRADA EN ESTADO MAP
+  -- ========================================
   if ui_state_machine:in_state("map") then
-
-    -- setear variables por defecto
+    -- Guardar la posición inicial del toque para detectar arrastres
     drag_start_x = x
     drag_start_y = y
     did_drag = false
 
-    -- chequea si tocaste el botón de volver al menu
-    -- Solo permitir drag si NO se tocó un botón
+    -- Solo permitir arrastrar el mapa si:
+    -- 1. NO se tocó un botón de UI
+    -- 2. NO es un toque táctil (mouse puede arrastrar)
     if not pressed_button and not istouch then
       expoguia_map.allowdrag = true
     end
@@ -900,38 +1213,58 @@ local function handlepressed(id, x, y, button, istouch)
 end
 
 local function handlemoved(id, x, y, dx, dy, istouch)
-
-
+  -- ========================================
+  -- NOTIFICAR A MÁQUINAS DE ESTADO
+  -- ========================================
+  -- Informar a las máquinas de estado que se produjo un movimiento
   ui_state_machine:handle_moved()
   dialog_state_machine:handle_moved()
 
   if debug then
     -- print("moved: " .. id .. " x,y: " .. x .. "," .. y .. " dx,dy: " .. dx .. "," .. dy)
   end
+
+  -- ========================================
+  -- MANEJAR ARRASTRE (PAN) DEL MAPA
+  -- ========================================
+  -- Determinar multiplicador según el tipo de entrada
   local multiplier = 1
   if istouch then
+    -- En pantallas táctiles, el movimiento es más rápido, así que aplicamos un multiplicador reducido
     multiplier = touchmultiplier
   end
+
+  -- Si estamos en el estado de mapa y el arrastre está habilitado
   if ui_state_machine:in_state("map") and expoguia_map.allowdrag then
     -- por alguna razón en touch el movimiento por defecto es grande y con esto lo intento contrarrestar
     expoguia_map.x = expoguia_map.x + dx*multiplier
     expoguia_map.y = expoguia_map.y + dy*multiplier
   end
 
+  -- ========================================
+  -- DETECTAR SI SE ESTÁ ARRASTRANDO
+  -- ========================================
+  -- Calcular distancia recorrida desde el inicio del toque
   if not did_drag then
     local dist = math.abs(x - drag_start_x) + math.abs(y - drag_start_y)
-    -- local dist = math.sqrt((x - drag_start_x)^2 + (y - drag_start_y)^2)
-    if dist > 10 then -- umbral de 10 píxeles
+    -- Usar distancia de Manhattan (suma de diferencias absolutas)
+    -- Es más eficiente que calcular la distancia euclidiana (sqrt)
+    if dist > 10 then -- umbral de 10 píxeles para considerar que se está arrastrando
       did_drag = true
     else
       did_drag = false
     end
   end
 
+  -- ========================================
+  -- MANEJAR ARRASTRE DEL DIÁLOGO DE FILTROS
+  -- ========================================
+  -- Si el diálogo de filtros está abierto y el usuario está arrastrando su headerbar
   if dialog_state_machine:in_state("filter") then
     if dialog.dragging then
-      dialog.y = dialog.y + dy*multiplier
-      -- limitar la posición del diálogo para que no se salga de la pantalla
+      -- Mover el diálogo verticalmente según el movimiento del toque
+      dialog.y = dialog.y + dy * multiplier
+      -- Limitar la posición del diálogo para que no se salga de los límites permitidos
       if dialog.y < dialog.min_y then
         dialog.y = dialog.min_y
       elseif dialog.y > dialog.max_y then
@@ -942,13 +1275,20 @@ local function handlemoved(id, x, y, dx, dy, istouch)
 end
 
 local function handlereleased(id, x, y, button, istouch)
-
-
+  -- ========================================
+  -- NOTIFICAR A MÁQUINAS DE ESTADO
+  -- ========================================
+  -- Informar a las máquinas de estado que se liberó la entrada
   ui_state_machine:handle_release()
   dialog_state_machine:handle_release()
 
+  -- ========================================
+  -- PROCESAR LIBERACIÓN DE BOTONES DE UI
+  -- ========================================
+  -- Detectar si se liberó un botón de UI y ejecutar su callback
   local released_button = uibuttons.handle_release(x - safe.x, y - safe.y)
 
+  -- Si se procesó un botón de UI, salir sin procesar más lógica
   if released_button then
     return
   end
@@ -957,38 +1297,52 @@ local function handlereleased(id, x, y, button, istouch)
     -- print("released: " .. id .. " x,y: " .. x .. "," .. y .. " button: " .. button)
   end
 
+  -- ========================================
+  -- MANEJAR LIBERACIÓN EN DIÁLOGO DE FILTROS
+  -- ========================================
   if dialog_state_machine:in_state("filter") then
     if dialog.dragging then
+      -- Si estábamos arrastrando el diálogo, dejar de hacerlo
       dialog.dragging = false
     elseif expo.inrange(x, 0, safe.w) and
 		   expo.inrange(y, 0, dialog.y) and
 		   dialog_closing then
+      -- Si tocamos fuera del diálogo y puede cerrarse, cerrarlo
       dialog_state_machine:set_state("idle")
 		end
   end
 
+  -- ========================================
+  -- MANEJAR TRANSICIÓN DESDE MENÚ
+  -- ========================================
   if ui_state_machine:in_state("menu") then
-
+    -- Si estamos en el menú y el JSON se cargó correctamente, ir al mapa
     if not errorOffline and jsonFile ~= 0 then
       ui_state_machine:set_state("map")
     end
   end
 
+  -- ========================================
+  -- MANEJAR ENTRADA EN ESTADO MAPA
+  -- ========================================
   if ui_state_machine:in_state("map") then
+    -- Si es entrada de mouse (no táctil), deshabilitar arrastre del mapa
     if not istouch then
       expoguia_map.allowdrag = false
     end
 
-    -- Primero, chequea si tocaste un stand
+    -- Detectar si se tocó un stand en estas coordenadas
+    -- Se suma un offset Y para ajustar por la altura de la textura del stand
     local stand = get_stand_at_point(x - safe.x, y - safe.y + stand_electro_png:getHeight()*0.1)
-    -- si se tocó un stand y NO se deslizó (drag)
+    -- Si se tocó un stand Y no se arrastró (movimiento mínimo)
     if stand and not did_drag then
+      -- Seleccionar el stand y mostrar su tarjeta informativa
       selected_stand = stand
     else
+      -- Si se arrastró o no se tocó un stand, deseleccionar
       selected_stand = nil
     end
   end
-
 
 end
 

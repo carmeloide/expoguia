@@ -985,6 +985,7 @@ function love.load()
       print("Botón Filtrar presionado")
       dialog_state_machine:set_state("filter")
 
+      -- sólo para testear:
       -- toggleCategory(filters_ui.categories["elec"])
 
     end

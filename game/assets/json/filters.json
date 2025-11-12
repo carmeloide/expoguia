@@ -19,7 +19,7 @@
     ]
   },
   {
-    "id": "cb",
+    "id": "cicb",
     "category": "Ciclo Básico",
     "icons": [
       "stand_ciclo_basico_png"
@@ -99,7 +99,7 @@
     ]
   },
   {
-    "id": "ipp",
+    "id": "infr",
     "category": "Informática",
     "icons": [
       "stand_ipp_png"

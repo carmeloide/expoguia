@@ -891,16 +891,9 @@ local function handlepressed(id, x, y, button, istouch)
     did_drag = false
 
     -- chequea si tocaste el botón de volver al menu
-    if expo.inrange(x, 0*safe.w, 0.1*safe.w) and
-       expo.inrange(y, 0*safe.h, 0.1*safe.h) then
-      print("back to menu")
-      ui_state_machine:set_state("menu")
-    else
-      -- Solo permitir drag si NO se tocó un botón
-      if not pressed_button and not istouch then
-        expoguia_map.allowdrag = true
-      end
-      -- return -- Importante: no llamar dos veces a handle_press
+    -- Solo permitir drag si NO se tocó un botón
+    if not pressed_button and not istouch then
+      expoguia_map.allowdrag = true
     end
   end
 
@@ -975,16 +968,10 @@ local function handlereleased(id, x, y, button, istouch)
   end
 
   if ui_state_machine:in_state("menu") then
-    --[[
-      if expo.inrange(x, 0*safe.w, 0.1*safe.w) and
-         expo.inrange(y, 0*safe.h, 0.1*safe.h) then
-        print("about dialog")
-      else
-    ]]
-      if not errorOffline and jsonFile ~= 0 then
-        ui_state_machine:set_state("map")
-      end
-    -- end
+
+    if not errorOffline and jsonFile ~= 0 then
+      ui_state_machine:set_state("map")
+    end
   end
 
   if ui_state_machine:in_state("map") then
